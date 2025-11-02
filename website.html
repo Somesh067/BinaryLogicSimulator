@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Binary Logic Simulator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-user-select: none; /* Disable text selection for keypad */
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Allow text selection in logs and inputs */
+        .execution-log, pre, input, .truth-table {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
+        /* Style for the execution trace logs */
+        .execution-log {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #0a0e14;
+            color: #c5c8c6;
+            border-radius: 8px;
+            padding: 1rem;
+            height: 400px; /* Default height for mobile */
+            overflow-y: auto;
+            border: 1px solid #374151;
+            white-space: pre;
+        }
+
+        /* Taller logs on medium screens and up */
+        @media (min-width: 768px) {
+            #arith-log {
+                height: 70vh;
+            }
+            #logic-output {
+                height: 450px;
+            }
+            #alu-log {
+                height: 600px;
+            }
+        }
+
+
+        /* Styles for the LED display */
+        .binary-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 1rem;
+            background-color: #1f2937;
+            border-radius: 8px;
+            border: 1px solid #374151;
+        }
+
+        .led-row {
+            display: flex;
+            flex-direction: row-reverse; /* Show MSB on the left */
+            gap: 6px;
+        }
+
+        .led {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .led[data-value="1"] {
+            background-color: #10b981; /* Green-500 */
+            color: #000;
+            border: 2px solid #34d399;
+            box-shadow: 0 0 10px #10b981, 0 0 5px #10b981 inset;
+        }
+
+        .led[data-value="0"] {
+            background-color: #374151; /* Gray-700 */
+            color: #9ca3af;
+            border: 2px solid #4b5563;
+        }
+
+        /* Single LED for gate output */
+        .led-single {
+             width: 60px;
+             height: 60px;
+             font-size: 24px;
+        }
+
+        .bit-labels {
+            display: flex;
+            flex-direction: row-reverse;
+            gap: 6px;
+            padding-left: 2px; /* Alignment fix */
+            padding-right: 2px;
+        }
+
+        .bit-label {
+            width: 30px;
+            text-align: center;
+            font-size: 10px;
+            color: #9ca3af;
+        }
+
+        /* Tab styles */
+        .tab-btn {
+            padding: 0.75rem 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+        .tab-btn.active {
+            background-color: #4f46e5; /* Indigo-600 */
+            color: white;
+        }
+
+        .tab-btn:not(.active) {
+            background-color: #374151; /* Gray-700 */
+            color: #d1d5db; /* Gray-300 */
+        }
+
+        .tab-btn:not(.active):hover {
+            background-color: #4b5563; /* Gray-600 */
+        }
+
+        .tab-btn:active {
+            transform: scale(0.95);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Modal for Logic Sim */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        /* Custom scrollbar */
+        .execution-log::-webkit-scrollbar {
+            width: 8px;
+        }
+        .execution-log::-webkit-scrollbar-track {
+            background: #1f2937;
+            border-radius: 4px;
+        }
+        .execution-log::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        .execution-log::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* Logic Gate Simulator Styles */
+        .gate-svg {
+            stroke: #9ca3af; /* Gray-400 */
+            stroke-width: 2;
+            fill: none;
+        }
+        .gate-svg path {
+             fill: #1f2937; /* Gray-800 */
+        }
+        .gate-svg text {
+            fill: #9ca3af;
+            font-family: sans-serif;
+            font-size: 10px;
+            stroke-width: 0.5;
+        }
+        .gate-svg .gate-line {
+            transition: stroke 0.2s ease;
+        }
+        .gate-svg .gate-line[data-value="1"] {
+            stroke: #10b981; /* Green-500 */
+        }
+
+        .gate-switch {
+            width: 70px;
+            height: 40px;
+            background-color: #374151;
+            border-radius: 20px;
+            padding: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid #4b5563;
+        }
+        .gate-switch .switch-knob {
+            width: 32px;
+            height: 32px;
+            background-color: #dc2626; /* Red-600 */
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            text-align: center;
+            line-height: 32px;
+            font-weight: bold;
+            color: white;
+        }
+        .gate-switch[data-value="1"] {
+            background-color: #10b981;
+        }
+        .gate-switch[data-value="1"] .switch-knob {
+            transform: translateX(30px);
+            background-color: #16a34a; /* Green-600 */
+        }
+
+        .truth-table {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #1f2937;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #374151;
+        }
+        .truth-table th {
+            border-bottom: 2px solid #4b5563;
+            padding: 0.5rem;
+            text-align: center;
+        }
+        .truth-table td {
+            padding: 0.5rem;
+            text-align: center;
+        }
+        .truth-table tr.highlight {
+            background-color: #4f46e5; /* Indigo-600 */
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Input Group (Base + Text) */
+        .input-group {
+            display: flex;
+            width: 100%;
+        }
+        .input-group select {
+            border-radius: 8px 0 0 8px;
+            border-right: 0;
+            background-color: #4b5563; /* Gray-600 */
+            font-weight: 600;
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+        .input-group input {
+            border-radius: 0 8px 8px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.125rem;
+        }
+
+        /* Virtual Keypad */
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+        }
+        .keypad-btn {
+            background-color: #374151; /* Gray-700 */
+            color: #d1d5db; /* Gray-300 */
+            padding: 1.25rem 0;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.125rem;
+            border: 2px solid #4b5563;
+            transition: all 0.1s ease;
+        }
+        .keypad-btn:hover {
+            background-color: #4b5563;
+        }
+        .keypad-btn:active {
+            transform: scale(0.95);
+            background-color: #556372;
+        }
+        .keypad-btn[data-key="backspace"] {
+            background-color: #7f1d1d; /* Red-800 */
+            border-color: #991b1b;
+        }
+        .keypad-btn[data-key="backspace"]:hover {
+             background-color: #991b1b;
+        }
+        .keypad-btn[data-key="backspace"]:active {
+             background-color: #b91c1c;
+        }
+        .keypad-btn:disabled {
+            background-color: #1f2937; /* Gray-800 */
+            color: #4b5563;
+            border-color: #374151;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        /* General Button Style */
+        .sim-button {
+             transition: all 0.1s ease;
+        }
+        .sim-button:active {
+            transform: scale(0.95);
+        }
+
+    </style>
+</head>
+<body class="h-full text-gray-200 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-indigo-500">
+                Intelligent Binary Logic Simulator
+            </h1>
+            <p class="text-base sm:text-lg text-gray-400 mt-2">A Web-Based Digital Logic and ALU Simulator</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="flex justify-center flex-wrap gap-2 md:gap-4 mb-8" id="tab-nav">
+            <button class="tab-btn active" data-tab="gates">Logic Gates</button>
+            <button class="tab-btn" data-tab="arithmetic">Arithmetic Operations</button>
+            <button class="tab-btn" data-tab="designer">Logic Designer</button>
+            <button class="tab-btn" data-tab="alu">ALU Simulator</button>
+        </nav>
+
+        <!-- Tab Content -->
+        <main id="tab-content-container">
+
+            <!-- ============================== -->
+            <!--       Logic Gates Tab          -->
+            <!-- ============================== -->
+            <section id="tab-gates" class="tab-content active">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                    <h2 class="text-2xl font-semibold mb-6 text-center text-cyan-400">Logic Gate Simulator</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+
+                        <!-- Inputs -->
+                        <div class="flex flex-col items-center gap-8">
+                            <!-- Input A -->
+                            <div class="flex flex-col items-center">
+                                <label class="text-lg font-semibold mb-2">Input A</label>
+                                <div class="gate-switch" id="gate-switch-a" data-value="0">
+                                    <div class="switch-knob" id="gate-knob-a">0</div>
+                                </div>
+                            </div>
+                            <!-- Input B -->
+                            <div class="flex flex-col items-center" id="gate-input-b-container">
+                                <label class="text-lg font-semibold mb-2">Input B</label>
+                                <div class="gate-switch" id="gate-switch-b" data-value="0">
+                                    <div class="switch-knob" id="gate-knob-b">0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gate Visualization -->
+                        <div class="flex flex-col items-center">
+                            <label for="gate-select" class="text-lg font-semibold mb-2">Select Gate</label>
+                            <select id="gate-select" class="w-full max-w-xs mb-4 bg-gray-700 border border-gray-600 rounded-lg p-2 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none">
+                                <option value="AND">AND</option>
+                                <option value="OR">OR</option>
+                                <option value="NOT">NOT</option>
+                                <option value="XOR">XOR</option>
+                                <option value="NAND">NAND</option>
+                                <option value="NOR">NOR</option>
+                                <option value="XNOR">XNOR</option>
+                            </select>
+
+                            <!-- SVG for Gates -->
+                            <svg id="gate-svg-canvas" width="200" height="200" viewBox="0 0 100 100" class="gate-svg">
+                                <!-- Wires -->
+                                <line id="gate-wire-a" class="gate-line" data-value="0" x1="0" y1="30" x2="35" y2="30"/>
+                                <line id="gate-wire-b" class="gate-line" data-value="0" x1="0" y1="70" x2="35" y2="70"/>
+                                <line id="gate-wire-out" class="gate-line" data-value="0" x1="75" y1="50" x2="100" y2="50"/>
+
+                                <!-- Gate Bodies (all stacked, JS will show/hide) -->
+                                <g id="gate-svg-AND" display="none"><path d="M35 20 V 80 H 55 A 30 30 0 0 0 55 20 Z"/></g>
+                                <g id="gate-svg-OR" display="none"><path d="M35 20 V 80 Q 60 50 35 20 M 35 20 Q 75 50 35 80 A 35 35 0 0 1 75 50 Z"/></g>
+                                <g id="gate-svg-NOT" display="none">
+                                    <path d="M35 30 V 70 L 65 50 Z"/>
+                                    <circle cx="70" cy="50" r="5"/>
+                                </g>
+                                <g id="gate-svg-XOR" display="none">
+                                    <path d="M30 20 V 80 Q 55 50 30 20 M 35 20 Q 75 50 35 80 A 35 35 0 0 1 75 50 Z"/>
+                                </g>
+                                <g id="gate-svg-NAND" display="none">
+                                    <path d="M35 20 V 80 H 55 A 30 30 0 0 0 55 20 Z"/>
+                                    <circle cx="80" cy="50" r="5"/>
+                                </g>
+                                <g id="gate-svg-NOR" display="none">
+                                    <path d="M35 20 V 80 Q 60 50 35 20 M 35 20 Q 75 50 35 80 A 35 35 0 0 1 75 50 Z"/>
+                                    <circle cx="80" cy="50" r="5"/>
+                                </g>
+                                <g id="gate-svg-XNOR" display="none">
+                                    <path d="M30 20 V 80 Q 55 50 30 20 M 35 20 Q 75 50 35 80 A 35 35 0 0 1 75 50 Z"/>
+                                    <circle cx="80" cy="50" r="5"/>
+                                </g>
+                            </svg>
+
+                            <!-- Output -->
+                            <div class="mt-4 flex flex-col items-center">
+                                <label class="text-lg font-semibold mb-2">Output</label>
+                                <div class="led led-single" id="gate-led-out" data-value="0">0</div>
+                            </div>
+                        </div>
+
+                        <!-- Truth Table -->
+                        <div class="flex flex-col items-center">
+                            <h3 class="text-lg font-semibold mb-2">Truth Table</h3>
+                            <table class="truth-table" id="gate-truth-table">
+                                <thead>
+                                    <tr><th>A</th><th>B</th><th>OUT</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr id="tt-row-00"><td>0</td><td>0</td><td class="tt-out">0</td></tr>
+                                    <tr id="tt-row-01"><td>0</td><td>1</td><td class="tt-out">0</td></tr>
+                                    <tr id="tt-row-10"><td>1</td><td>0</td><td class="tt-out">0</td></tr>
+                                    <tr id="tt-row-11"><td>1</td><td>1</td><td class="tt-out">0</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================== -->
+            <!--   Arithmetic Operations Tab    -->
+            <!-- ============================== -->
+            <section id="tab-arithmetic" class="tab-content">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Left Column: Inputs & Controls -->
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                        <h2 class="text-2xl font-semibold mb-6 text-emerald-400">Arithmetic Operations</h2>
+
+                        <!-- Inputs -->
+                        <div class="space-y-4 mb-6">
+                            <!-- Operand A Input Group -->
+                            <div>
+                                <label for="arith-a-input" class="block text-sm font-medium text-gray-300 mb-1">Operand A</label>
+                                <div class="input-group">
+                                    <select id="arith-a-base" class="input-base-select bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                        <option>Binary</option>
+                                        <option selected>Decimal</option>
+                                        <option>Octal</option>
+                                        <option>Hex</option>
+                                    </select>
+                                    <input type="text" id="arith-a-input" value="5" data-base="Decimal" class="w-full bg-gray-700 border border-gray-600 p-2 text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none operand-input">
+                                </div>
+                            </div>
+                            <!-- Operand B Input Group -->
+                            <div>
+                                <label for="arith-b-input" class="block text-sm font-medium text-gray-300 mb-1">Operand B</label>
+                                <div class="input-group">
+                                    <select id="arith-b-base" class="input-base-select bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                        <option>Binary</option>
+                                        <option selected>Decimal</option>
+                                        <option>Octal</option>
+                                        <option>Hex</option>
+                                    </select>
+                                    <input type="text" id="arith-b-input" value="3" data-base="Decimal" class="w-full bg-gray-700 border border-gray-600 p-2 text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none operand-input">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Virtual Keypad -->
+                        <div class="mb-6">
+                            <div class="keypad" id="arith-keypad">
+                                <button data-key="1" class="keypad-btn">1</button>
+                                <button data-key="2" class="keypad-btn">2</button>
+                                <button data-key="3" class="keypad-btn">3</button>
+                                <button data-key="A" class="keypad-btn">A</button>
+                                <button data-key="4" class="keypad-btn">4</button>
+                                <button data-key="5" class="keypad-btn">5</button>
+                                <button data-key="6" class="keypad-btn">6</button>
+                                <button data-key="B" class="keypad-btn">B</button>
+                                <button data-key="7" class="keypad-btn">7</button>
+                                <button data-key="8" class="keypad-btn">8</button>
+                                <button data-key="9" class="keypad-btn">9</button>
+                                <button data-key="C" class="keypad-btn">C</button>
+                                <button data-key="0" class="keypad-btn col-span-2">0</button>
+                                <button data-key="backspace" class="keypad-btn">⌫</button>
+                                <button data-key="D" class="keypad-btn">D</button>
+                                <button data-key="E" class="keypad-btn">E</button>
+                                <button data-key="F" class="keypad-btn">F</button>
+                                <button data-key="clear" class="keypad-btn col-span-2">Clear</button>
+                            </div>
+                        </div>
+
+                        <!-- Operation Buttons -->
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <button id="btn-add" class="p-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">ADD</button>
+                            <button id="btn-sub" class="p-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">SUB</button>
+                            <button id="btn-mul" class="p-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">MUL</button>
+                            <button id="btn-div" class="p-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">DIV</button>
+                        </div>
+
+                        <!-- Binary Displays -->
+                        <div class="space-y-4">
+                            <div id="display-arith-a" class="binary-display"></div>
+                            <div id="display-arith-b" class="binary-display"></div>
+                            <div id="display-arith-result" class="binary-display" data-bit-width="16"></div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Execution Trace -->
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-300">Execution Trace</h3>
+                        <pre id="arith-log" class="execution-log"></pre>
+                        <div id="arith-message" class="mt-4 text-yellow-400 font-medium h-12"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================== -->
+            <!--      Logic Designer Tab        -->
+            <!-- ============================== -->
+            <section id="tab-designer" class="tab-content">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Left Column: Inputs & Controls -->
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                        <h2 class="text-2xl font-semibold mb-6 text-indigo-400">Logic Expression Evaluator</h2>
+
+                        <!-- Input -->
+                        <div class="mb-6">
+                            <label for="logic-expr" class="block text-sm font-medium text-gray-300 mb-1">Boolean Expression</label>
+                            <input type="text" id="logic-expr" value="(A AND B) OR NOT C" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono">
+                            <p class="text-xs text-gray-500 mt-1">Use: AND, OR, XOR, NOT, parentheses ()</p>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="flex gap-4 mb-6">
+                            <button id="btn-truth-table" class="flex-1 p-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">Generate Truth Table</button>
+                            <button id="btn-simulate-expr" class="flex-1 p-3 bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">Simulate Step-by-Step</button>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Output -->
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-300">Output</h3>
+                        <pre id="logic-output" class="execution-log"></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================== -->
+            <!--       ALU Simulator Tab        -->
+            <!-- ============================== -->
+            <section id="tab-alu" class="tab-content">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Left Column: Controls & Display -->
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                        <h2 class="text-2xl font-semibold mb-6 text-rose-400">Mini ALU Simulator</h2>
+
+                        <!-- Inputs -->
+                        <div class="space-y-4 mb-6">
+                            <!-- Operand A Input Group -->
+                            <div>
+                                <label for="alu-a-input" class="block text-sm font-medium text-gray-300 mb-1">Operand A</label>
+                                <div class="input-group">
+                                    <select id="alu-a-base" class="input-base-select bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-rose-500 focus:outline-none">
+                                        <option>Binary</option>
+                                        <option selected>Decimal</option>
+                                        <option>Octal</option>
+                                        <option>Hex</option>
+                                    </select>
+                                    <input type="text" id="alu-a-input" value="15" data-base="Decimal" class="w-full bg-gray-700 border border-gray-600 p-2 text-white focus:ring-2 focus:ring-rose-500 focus:outline-none operand-input">
+                                </div>
+                            </div>
+                            <!-- Operand B Input Group -->
+                            <div>
+                                <label for="alu-b-input" class="block text-sm font-medium text-gray-300 mb-1">Operand B</label>
+                                <div class="input-group">
+                                    <select id="alu-b-base" class="input-base-select bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-rose-500 focus:outline-none">
+                                        <option>Binary</option>
+                                        <option selected>Decimal</option>
+                                        <option>Octal</option>
+                                        <option>Hex</option>
+                                    </select>
+                                    <input type="text" id="alu-b-input" value="7" data-base="Decimal" class="w-full bg-gray-700 border border-gray-600 p-2 text-white focus:ring-2 focus:ring-rose-500 focus:outline-none operand-input">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Virtual Keypad -->
+                        <div class="mb-6">
+                             <div class="keypad" id="alu-keypad">
+                                <button data-key="1" class="keypad-btn">1</button>
+                                <button data-key="2" class="keypad-btn">2</button>
+                                <button data-key="3" class="keypad-btn">3</button>
+                                <button data-key="A" class="keypad-btn">A</button>
+                                <button data-key="4" class="keypad-btn">4</button>
+                                <button data-key="5" class="keypad-btn">5</button>
+                                <button data-key="6" class="keypad-btn">6</button>
+                                <button data-key="B" class="keypad-btn">B</button>
+                                <button data-key="7" class="keypad-btn">7</button>
+                                <button data-key="8" class="keypad-btn">8</button>
+                                <button data-key="9" class="keypad-btn">9</button>
+                                <button data-key="C" class="keypad-btn">C</button>
+                                <button data-key="0" class="keypad-btn col-span-2">0</button>
+                                <button data-key="backspace" class="keypad-btn">⌫</button>
+                                <button data-key="D" class="keypad-btn">D</button>
+                                <button data-key="E" class="keypad-btn">E</button>
+                                <button data-key="F" class="keypad-btn">F</button>
+                                <button data-key="clear" class="keypad-btn col-span-2">Clear</button>
+                            </div>
+                        </div>
+
+                        <!-- Operation Selection -->
+                        <div class="flex gap-4 mb-6 items-end">
+                            <div class="flex-1">
+                                <label for="alu-op" class="block text-sm font-medium text-gray-300 mb-1">Select Operation</label>
+                                <select id="alu-op" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white focus:ring-2 focus:ring-rose-500 focus:outline-none">
+                                    <option>ADD</option>
+                                    <option>SUB</option>
+                                    <option>MUL</option>
+                                    <option>DIV</option>
+                                    <option>AND</option>
+                                    <option>OR</option>
+                                    <option>XOR</option>
+                                    <option>NOT</option>
+                                    <option>SHL</option>
+                                    <option>SHR</option>
+                                    <option>ROL</option>
+                                    <option>ROR</option>
+                                </select>
+                            </div>
+                            <button id="btn-alu-execute" class="p-2 px-6 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 active:scale-95 transform transition-all rounded-lg font-semibold h-10 sim-button">Execute</button>
+                        </div>
+
+                        <!-- Result Display -->
+                        <div id="display-alu-result" class="binary-display mb-6"></div>
+
+                        <!-- Status Flags -->
+                        <div class="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                             <h4 class="text-lg font-semibold mb-3 text-center text-gray-400">Status Flags</h4>
+                             <div class="flex justify-around">
+                                <div id="flag-Z" class="text-center" data-value="0"><div class="font-bold text-2xl text-gray-600">0</div><div class="text-sm font-medium text-gray-500">Zero</div></div>
+                                <div id="flag-C" class="text-center" data-value="0"><div class="font-bold text-2xl text-gray-600">0</div><div class="text-sm font-medium text-gray-500">Carry</div></div>
+                                <div id="flag-O" class="text-center" data-value="0"><div class="font-bold text-2xl text-gray-600">0</div><div class="text-sm font-medium text-gray-500">Overflow</div></div>
+                                <div id="flag-S" class="text-center" data-value="0"><div class="font-bold text-2xl text-gray-600">0</div><div class="text-sm font-medium text-gray-500">Sign</div></div>
+                                <div id="flag-P" class="text-center" data-value="0"><div class="font-bold text-2xl text-gray-600">0</div><div class="text-sm font-medium text-gray-500">Parity</div></div>
+                             </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Column: ALU Log -->
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-300">ALU Execution Log</h3>
+                        <pre id="alu-log" class="execution-log"></pre>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ============================== -->
+    <!--     Modal for Logic Sim Input    -->
+    <!-- ============================== -->
+    <div id="simulation-modal" class="modal">
+        <div class="bg-gray-800 rounded-lg shadow-2xl p-8 w-full max-w-md border border-gray-700">
+            <h2 class="text-2xl font-semibold mb-6 text-yellow-400">Set Variable Values</h2>
+            <div id="simulation-inputs" class="space-y-4 mb-8">
+                <!-- Inputs will be dynamically generated here -->
+            </div>
+            <div class="flex gap-4">
+                <button id="btn-modal-cancel" class="flex-1 p-3 bg-gray-600 hover:bg-gray-700 active:bg-gray-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">Cancel</button>
+                <button id="btn-modal-run" class="flex-1 p-3 bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800 active:scale-95 transform transition-all rounded-lg font-semibold sim-button">Run Simulation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================== -->
+    <!--       JAVASCRIPT LOGIC         -->
+    <!--  (All Python files ported)     -->
+    <!-- ============================== -->
+    <script type="module">
+        // --- Utility Functions ---
+
+        /**
+         * Creates or updates a binary LED display.
+         * @param {string} elementId - The ID of the display's container element.
+         * @param {number[]} bits - The array of bits (LSB first).
+         * @param {string} label - The label for the display (e.g., "Operand A").
+         */
+        function createBinaryDisplay(elementId, bits, label) {
+            const container = document.getElementById(elementId);
+            if (!container) return;
+
+            const bitWidth = parseInt(container.dataset.bitWidth) || bits.length || 8;
+
+            // Pad or truncate bits to match display width
+            let displayBits = [...bits];
+            while (displayBits.length < bitWidth) displayBits.push(0);
+            displayBits = displayBits.slice(0, bitWidth);
+
+            const decimalValue = BinaryAnalyzer.binary_to_decimal(displayBits);
+
+            let ledHTML = '';
+            let labelHTML = '';
+
+            // LSB is index 0, but we display MSB first (on the left)
+            // So we iterate from bitWidth - 1 down to 0
+            for (let i = bitWidth - 1; i >= 0; i--) {
+                const bitValue = displayBits[i] || 0;
+                ledHTML += `<div class="led" data-value="${bitValue}">${bitValue}</div>`;
+                labelHTML += `<div class="bit-label">${i}</div>`;
+            }
+
+            container.innerHTML = `
+                <span class="font-semibold text-lg text-gray-300">${label}</span>
+                <div class="led-row">${ledHTML}</div>
+                <div class="bit-labels">${labelHTML}</div>
+                <span class="text-sm text-gray-400">Decimal: ${decimalValue}</span>
+            `;
+        }
+
+        /**
+         * Updates the ALU Status Flag indicators in the UI.
+         * @param {object} flags - The flags object from ALUFlags.
+         */
+        function updateAluFlags(flags) {
+            const flagMap = { Z: 'Zero', C: 'Carry', O: 'Overflow', S: 'Sign', P: 'Parity' };
+            for (const [key, name] of Object.entries(flagMap)) {
+                const el = document.getElementById(`flag-${key}`);
+                const value = flags[name];
+                const textEl = el.querySelector('div:first-child');
+                const labelEl = el.querySelector('div:last-child');
+
+                textEl.textContent = value;
+                if (value === 1) {
+                    textEl.className = 'font-bold text-2xl text-emerald-400';
+                    labelEl.className = 'text-sm font-medium text-gray-300';
+                } else {
+                    textEl.className = 'font-bold text-2xl text-gray-600';
+                    labelEl.className = 'text-sm font-medium text-gray-500';
+                }
+            }
+        }
+
+        /**
+         * Shows or hides a tab panel.
+         * @param {string} tabName - The name of the tab (e.g., "arithmetic").
+         */
+        function showTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('#tab-nav .tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+
+            // Show/hide content
+            document.querySelectorAll('#tab-content-container .tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === `tab-${tabName}`);
+            });
+        }
+
+        /**
+         * Displays a modal.
+         * @param {string} modalId - The ID of the modal to show.
+         */
+        function showModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if(modal) modal.classList.add('active');
+        }
+
+        /**
+         * Hides a modal.
+         * @param {string} modalId - The ID of the modal to hide.
+         */
+        function hideModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if(modal) modal.classList.remove('active');
+        }
+
+        /**
+         * Clears and shows a message in a specified element.
+         * @param {string} elementId - The ID of the message element.
+         * @param {string} message - The message to display.
+         * @param {string} [level="warn"] - "warn" or "info".
+         */
+        function showMessage(elementId, message, level = "warn") {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            el.textContent = message;
+            el.className = level === 'warn' ? 'mt-4 text-yellow-400 font-medium h-12' : 'mt-4 text-green-400 font-medium h-12';
+        }
+
+        // --- Ported Python Class: LogicGates ---
+        class LogicGates {
+            static AND(a, b) { return (a === 1 && b === 1) ? 1 : 0; }
+            static OR(a, b) { return (a === 1 || b === 1) ? 1 : 0; }
+            static NOT(a) { return (a === 0) ? 1 : 0; }
+            static XOR(a, b) {
+                return LogicGates.OR(
+                    LogicGates.AND(a, LogicGates.NOT(b)),
+                    LogicGates.AND(LogicGates.NOT(a), b)
+                );
+            }
+            static NAND(a, b) { return LogicGates.NOT(LogicGates.AND(a, b)); }
+            static NOR(a, b) { return LogicGates.NOT(LogicGates.OR(a, b)); }
+            static XNOR(a, b) { return LogicGates.NOT(LogicGates.XOR(a, b)); }
+        }
+
+        // --- Ported Python Class: CombinationalCircuits ---
+        class CombinationalCircuits {
+            static half_adder(a, b) {
+                const sum_bit = LogicGates.XOR(a, b);
+                const carry_bit = LogicGates.AND(a, b);
+                return [sum_bit, carry_bit];
+            }
+
+            static full_adder(a, b, carry_in) {
+                const [sum1, carry1] = CombinationalCircuits.half_adder(a, b);
+                const [sum_out, carry2] = CombinationalCircuits.half_adder(sum1, carry_in);
+                const carry_out = LogicGates.OR(carry1, carry2);
+                return [sum_out, carry_out];
+            }
+        }
+
+        // --- Ported Python Class: BinaryAnalyzer ---
+        class BinaryAnalyzer {
+            /**
+             * Parses an input string from a given base to a decimal integer.
+             * @param {string} value - The input string.
+             * @param {string} base - "Binary", "Decimal", "Octal", or "Hex".
+             * @returns {number} The decimal value, or NaN if invalid.
+             */
+            static parseInput(value, base) {
+                if (!value) return 0;
+                switch (base) {
+                    case 'Binary': return parseInt(value, 2);
+                    case 'Decimal': return parseInt(value, 10);
+                    case 'Octal': return parseInt(value, 8);
+                    case 'Hex': return parseInt(value, 16);
+                    default: return NaN;
+                }
+            }
+
+            /**
+             * Validates if a character is valid for a given base.
+             * @param {string} char - The character to test.
+             * @param {string} base - The base name.
+             * @returns {boolean}
+             */
+            static isValidChar(char, base) {
+                char = char.toUpperCase();
+                switch (base) {
+                    case 'Binary': return /^[01]$/.test(char);
+                    case 'Decimal': return /^[0-9]$/.test(char);
+                    case 'Octal': return /^[0-7]$/.test(char);
+                    case 'Hex': return /^[0-9A-F]$/.test(char);
+                    default: return false;
+                }
+            }
+
+            static decimal_to_binary(n, bit_width) {
+                if (n < 0 || isNaN(n)) {
+                    // For this project, we handle negative numbers
+                    // via 2's complement in the arithmetic module.
+                    // This converter assumes positive input.
+                    // Return 0s for invalid input
+                    return Array(bit_width).fill(0);
+                }
+                let bits = [];
+                let temp_n = n;
+                while (temp_n > 0) {
+                    bits.push(temp_n % 2);
+                    temp_n = Math.floor(temp_n / 2);
+                }
+                while (bits.length < bit_width) {
+                    bits.push(0);
+                }
+                return bits.slice(0, bit_width);
+            }
+
+            static binary_to_decimal(bits) {
+                let decimal = 0;
+                for (let i = 0; i < bits.length; i++) {
+                    if (bits[i] === 1) {
+                        decimal += (2 ** i);
+                    }
+                }
+                return decimal;
+            }
+
+            static format_binary_string(bits, msb_first = true) {
+                let display_bits = [...bits];
+                if (msb_first) {
+                    display_bits.reverse();
+                }
+                let s = display_bits.join("");
+                let parts = [];
+                for (let i = 0; i < s.length; i += 4) {
+                    parts.push(s.substring(i, i + 4));
+                }
+                return parts.join(" ");
+            }
+
+            static check_parity(bits) {
+                let parity = 0;
+                for (const bit of bits) {
+                    parity = LogicGates.XOR(parity, bit);
+                }
+                return parity;
+            }
+        }
+
+        // --- Ported Python Class: BinaryArithmetic ---
+        class BinaryArithmetic {
+            constructor(bit_width) {
+                this.bit_width = bit_width;
+                this.execution_steps = [];
+            }
+
+            _add_step(description, data) {
+                let step_data = { data: {} };
+                step_data.description = description;
+                for (const [key, value] of Object.entries(data)) {
+                    if (Array.isArray(value)) {
+                        step_data.data[key] = BinaryAnalyzer.format_binary_string(value);
+                    } else {
+                        step_data.data[key] = String(value);
+                    }
+                }
+                this.execution_steps.push(step_data);
+            }
+
+            _format_trace() {
+                return this.execution_steps.map(step => {
+                    let s = `\n${'='.repeat(50)}\n${step.description}\n`;
+                    if (step.data) {
+                        for (const [key, value] of Object.entries(step.data)) {
+                            s += `  ${key}: ${value}\n`;
+                        }
+                    }
+                    return s;
+                }).join("");
+            }
+
+            _shift_left(bits, amount = 1) {
+                if (amount <= 0) return [...bits];
+                let shifted = [...bits.slice(amount), ...Array(amount).fill(0)];
+                return shifted.slice(0, bits.length);
+            }
+
+            _shift_right(bits, amount = 1) {
+                if (amount <= 0) return [...bits];
+                let shifted = [...Array(amount).fill(0), ...bits.slice(0, -amount)];
+                return shifted.slice(0, bits.length);
+            }
+
+            ripple_carry_adder(a_bits, b_bits, trace = false) {
+                if (trace) {
+                    this.execution_steps = [];
+                    this._add_step("Start Ripple Carry Adder", {
+                        "Operand A": a_bits, "Operand B": b_bits, "Bit Width": this.bit_width
+                    });
+                }
+                let sum_bits = Array(this.bit_width).fill(0);
+                let carry_in = 0;
+                for (let i = 0; i < this.bit_width; i++) {
+                    const a_bit = a_bits[i];
+                    const b_bit = b_bits[i];
+                    const [sum_bit, carry_out] = CombinationalCircuits.full_adder(a_bit, b_bit, carry_in);
+                    sum_bits[i] = sum_bit;
+                    if (trace) {
+                        this._add_step(`Bit ${i} (Full Adder)`, {
+                            "A": a_bit, "B": b_bit, "Carry In": carry_in, "Sum Out": sum_bit, "Carry Out": carry_out
+                        });
+                    }
+                    carry_in = carry_out;
+                }
+                if (trace) {
+                    this._add_step("Addition Complete", {
+                        "Final Sum": sum_bits, "Final Carry (Overflow)": carry_in
+                    });
+                }
+                return [sum_bits, carry_in];
+            }
+
+            twos_complement(bits, trace = false) {
+                if (trace) {
+                    this.execution_steps = [];
+                    this._add_step("Start 2's Complement", { "Input": bits });
+                }
+                let inverted_bits = Array(this.bit_width).fill(0);
+                for (let i = 0; i < this.bit_width; i++) {
+                    inverted_bits[i] = LogicGates.NOT(bits[i]);
+                }
+                if (trace) {
+                    this._add_step("Step 1: Invert all bits (1's Complement)", { "Result": inverted_bits });
+                }
+                let one = Array(this.bit_width).fill(0);
+                one[0] = 1;
+
+                // Use a temporary adder
+                const adder_for_comp = new BinaryArithmetic(this.bit_width);
+                const [result, _] = adder_for_comp.ripple_carry_adder(inverted_bits, one, false);
+
+                if (trace) {
+                    this._add_step("Step 2: Add 1", {
+                        "Input": inverted_bits, "Operand B": one, "Result": result
+                    });
+                }
+                return result;
+            }
+
+            subtract(a_bits, b_bits, trace = false) {
+                if (trace) {
+                    this.execution_steps = [];
+                    this._add_step("Start Subtraction (A - B)", { "Operand A": a_bits, "Operand B": b_bits });
+                }
+                const comp_b = this.twos_complement(b_bits, false); // No sub-trace for this
+                if (trace) {
+                    this._add_step("Step 1: Get 2's Complement of B", { "B": b_bits, "2's Comp(B)": comp_b });
+                }
+
+                const adder_for_sub = new BinaryArithmetic(this.bit_width);
+                const [result, carry_out] = adder_for_sub.ripple_carry_adder(a_bits, comp_b, trace); // Trace this add
+
+                if (trace) {
+                    // Combine traces
+                    this.execution_steps.push(...adder_for_sub.execution_steps);
+                    this._add_step("Step 2: Added A + (2's Comp(B))", {
+                         "A": a_bits, "2's Comp(B)": comp_b, "Result": result, "Carry Out": carry_out
+                    });
+                }
+
+                const borrow = LogicGates.NOT(carry_out);
+                const sign_a = a_bits[this.bit_width - 1];
+                const sign_b = b_bits[this.bit_width - 1];
+                const sign_res = result[this.bit_width - 1];
+                const overflow = LogicGates.AND(
+                    LogicGates.XOR(sign_a, sign_b),
+                    LogicGates.XNOR(sign_res, sign_b)
+                );
+                if (trace) {
+                    this._add_step("Subtraction Complete", {
+                        "Final Result": result, "Borrow (A < B)": borrow, "Overflow": overflow
+                    });
+                }
+                return [result, borrow, overflow];
+            }
+
+            multiply(a_bits, b_bits, trace = false) {
+                const result_width = this.bit_width * 2;
+                if (trace) {
+                    this.execution_steps = [];
+                    this._add_step("Start Multiplication (Shift-and-Add)", {
+                        "A (Multiplicand)": a_bits, "B (Multiplier)": b_bits
+                    });
+                }
+                let product = Array(result_width).fill(0);
+                const product_adder = new BinaryArithmetic(result_width);
+                let multiplicand = [...a_bits, ...Array(this.bit_width).fill(0)];
+
+                for (let i = 0; i < this.bit_width; i++) {
+                    if (trace) {
+                        this._add_step(`Step ${i+1}: Check Multiplier Bit ${i}`, {
+                            "Multiplier Bit": b_bits[i], "Current Product": product
+                        });
+                    }
+                    if (b_bits[i] === 1) {
+                        if (trace) {
+                            this._add_step(`Bit ${i} is 1: Add Shifted Multiplicand`, {
+                                "Product": product, "Multiplicand": multiplicand
+                            });
+                        }
+                        [product, _] = product_adder.ripple_carry_adder(product, multiplicand, false);
+                        if (trace) {
+                            this._add_step("Addition Result", { "New Product": product });
+                        }
+                    }
+                    multiplicand = this._shift_left(multiplicand);
+                    if (trace && i < this.bit_width - 1) {
+                        this._add_step(`Shift Multiplicand Left (for Bit ${i+1})`, { "New Multiplicand": multiplicand });
+                    }
+                }
+                if (trace) {
+                    this._add_step("Multiplication Complete", { "Final Product": product });
+                }
+                return product;
+            }
+
+            divide(a_bits, b_bits, trace = false) {
+                if (trace) {
+                    this.execution_steps = [];
+                    this._add_step("Start Division (Restoring)", { "A (Dividend)": a_bits, "B (Divisor)": b_bits });
+                }
+
+                let is_zero = 1;
+                for (const bit of b_bits) { is_zero = LogicGates.AND(is_zero, LogicGates.NOT(bit)); }
+                if (is_zero === 1) {
+                    if (trace) { this._add_step("ERROR: Divide by Zero", {}); }
+                    return [Array(this.bit_width).fill(0), Array(this.bit_width).fill(0)];
+                }
+
+                let A = Array(this.bit_width).fill(0);
+                let Q = [...a_bits];
+                let M = [...b_bits];
+                const subtractor = new BinaryArithmetic(this.bit_width);
+                const adder = new BinaryArithmetic(this.bit_width);
+
+                for (let i = 0; i < this.bit_width; i++) {
+                    const q_msb = Q[this.bit_width - 1];
+                    A = this._shift_left(A);
+                    Q = this._shift_left(Q);
+                    A[0] = q_msb;
+
+                    if (trace) {
+                        this._add_step(`Step ${i+1}: Shift Left (A, Q)`, { "A (Remainder)": A, "Q (Quotient)": Q });
+                    }
+
+                    const a_before_sub = [...A];
+                    [A, , ] = subtractor.subtract(A, M, false);
+
+                    if (trace) {
+                        this._add_step("Calculate A = A - M", { "A (before)": a_before_sub, "M": M, "A (after)": A });
+                    }
+
+                    const a_is_negative = A[this.bit_width - 1];
+                    if (a_is_negative === 1) {
+                        Q[0] = 0;
+                        [A, , ] = adder.ripple_carry_adder(A, M, false);
+                        if (trace) {
+                            this._add_step("A is Negative: Set Q[0]=0, Restore A", {
+                                "Action": "A = A + M", "Restored A": A, "Quotient (Q)": Q
+                            });
+                        }
+                    } else {
+                        Q[0] = 1;
+                        if (trace) {
+                            this._add_step("A is Positive: Set Q[0]=1", { "Action": "A is kept", "Quotient (Q)": Q });
+                        }
+                    }
+                }
+                if (trace) {
+                    this._add_step("Division Complete", { "Quotient": Q, "Remainder": A });
+                }
+                return [Q, A];
+            }
+        }
+
+        // --- Ported Python Class: LogicExpressionParser ---
+        class LogicExpressionParser {
+            constructor() {
+                this.operators = {
+                    'NOT': { precedence: 3, unary: true },
+                    '!': { precedence: 3, unary: true },
+                    '~': { precedence: 3, unary: true },
+                    'AND': { precedence: 2, unary: false },
+                    '&': { precedence: 2, unary: false },
+                    'OR': { precedence: 1, unary: false },
+                    '|': { precedence: 1, unary: false },
+                    'XOR': { precedence: 1, unary: false },
+                    '^': { precedence: 1, unary: false },
+                };
+            }
+
+            tokenize(expression) {
+                let expr = expression.toUpperCase();
+                expr = expr.replace(/AND/g, '&').replace(/OR/g, '|').replace(/XOR/g, '^').replace(/NOT/g, '!');
+                const tokens = expr.match(/[A-Z]+|[&|^!~()]|\d+/g) || [];
+                return tokens;
+            }
+
+            extract_variables(tokens) {
+                const variables = new Set();
+                for (const token of tokens) {
+                    if (/^[A-Z]+$/.test(token) && !(token in this.operators)) {
+                        variables.add(token);
+                    }
+                }
+                return Array.from(variables).sort();
+            }
+
+            infix_to_postfix(tokens) {
+                let output = [];
+                let operator_stack = [];
+                for (const token of tokens) {
+                    if (/^[A-Z0-9]+$/.test(token)) {
+                        output.push(token);
+                    } else if (token === '(') {
+                        operator_stack.push(token);
+                    } else if (token === ')') {
+                        while (operator_stack.length > 0 && operator_stack[operator_stack.length - 1] !== '(') {
+                            output.push(operator_stack.pop());
+                        }
+                        if (operator_stack.length > 0) operator_stack.pop(); // Remove '('
+                    } else if (token in this.operators) {
+                        while (
+                            operator_stack.length > 0 &&
+                            operator_stack[operator_stack.length - 1] !== '(' &&
+                            operator_stack[operator_stack.length - 1] in this.operators &&
+                            this.operators[operator_stack[operator_stack.length - 1]].precedence >= this.operators[token].precedence
+                        ) {
+                            output.push(operator_stack.pop());
+                        }
+                        operator_stack.push(token);
+                    }
+                }
+                while (operator_stack.length > 0) {
+                    output.push(operator_stack.pop());
+                }
+                return output;
+            }
+
+            evaluate_postfix(postfix, variable_values) {
+                let stack = [];
+                for (const token of postfix) {
+                    if (/^[A-Z]+$/.test(token)) {
+                        stack.push(variable_values[token] || 0);
+                    } else if (/^\d+$/.test(token)) {
+                        stack.push(parseInt(token));
+                    } else if (token in this.operators) {
+                        if (this.operators[token].unary) {
+                            if (stack.length < 1) throw new Error("Syntax Error");
+                            const operand = stack.pop();
+                            stack.push(LogicGates.NOT(operand));
+                        } else {
+                            if (stack.length < 2) throw new Error("Syntax Error");
+                            const b = stack.pop();
+                            const a = stack.pop();
+                            if (token === '&' || token === 'AND') stack.push(LogicGates.AND(a, b));
+                            else if (token === '|' || token === 'OR') stack.push(LogicGates.OR(a, b));
+                            else if (token === '^' || token === 'XOR') stack.push(LogicGates.XOR(a, b));
+                        }
+                    }
+                }
+                if (stack.length !== 1) throw new Error("Syntax Error");
+                return stack[0];
+            }
+
+            evaluate(expression, variable_values) {
+                const tokens = this.tokenize(expression);
+                const postfix = this.infix_to_postfix(tokens);
+                return this.evaluate_postfix(postfix, variable_values);
+            }
+
+            generate_truth_table(expression) {
+                const tokens = this.tokenize(expression);
+                const variables = this.extract_variables(tokens);
+                if (variables.length === 0) {
+                    throw new Error("No variables found in expression");
+                }
+                let rows = [];
+                const num_vars = variables.length;
+                const num_combinations = 2 ** num_vars;
+                for (let i = 0; i < num_combinations; i++) {
+                    let variable_values = {};
+                    let row_inputs = [];
+                    for (let j = 0; j < num_vars; j++) {
+                        const bit_value = (i >> (num_vars - 1 - j)) & 1;
+                        variable_values[variables[j]] = bit_value;
+                        row_inputs.push(bit_value);
+                    }
+                    const result = this.evaluate(expression, variable_values);
+                    rows.push({ inputs: row_inputs, output: result });
+                }
+                return { variables, rows, expression };
+            }
+
+            format_truth_table(truth_table) {
+                const { variables, rows, expression } = truth_table;
+                let output = `Truth Table for: ${expression}\n`;
+                output += "=".repeat(expression.length + 18) + "\n\n";
+
+                const header = " | " + variables.join(" | ") + " | OUT\n";
+                output += header;
+                output += "-".repeat(header.length - 1) + "\n";
+
+                for (const row of rows) {
+                    const inputs_str = " | " + row.inputs.join(" | ");
+                    output += `${inputs_str} |  ${row.output}\n`;
+                }
+                return output;
+            }
+        }
+
+        // --- Ported Python Class: CircuitSimulator ---
+        class CircuitSimulator {
+            constructor() {
+                this.parser = new LogicExpressionParser();
+                this.execution_trace = [];
+            }
+
+            _add_trace(step, description, data) {
+                 this.execution_trace.push({ step, description, data });
+            }
+
+            _format_trace(expression, inputs) {
+                let s = `Expression: ${expression}\n`;
+                s += `Inputs: ${JSON.stringify(inputs)}\n\n`;
+                s += "=".repeat(60) + "\n";
+                s += "EXECUTION TRACE\n";
+                s += "=".repeat(60) + "\n\n";
+
+                for (const entry of this.execution_trace) {
+                    s += `${entry.step}: ${entry.description}\n`;
+                    for (const [key, value] of Object.entries(entry.data)) {
+                         s += `  ${key}: ${value}\n`;
+                    }
+                    s += "\n";
+                }
+                return s;
+            }
+
+            simulate_step_by_step(expression, variable_values) {
+                this.execution_trace = [];
+                const tokens = this.parser.tokenize(expression);
+                const postfix = this.parser.infix_to_postfix(tokens);
+                this._add_trace('Parse', 'Convert to postfix notation', { 'infix': tokens.join(' '), 'postfix': postfix.join(' ') });
+
+                let stack = [];
+                let step_num = 1;
+                for (const token of postfix) {
+                    if (/^[A-Z]+$/.test(token)) {
+                        const value = variable_values[token] || 0;
+                        stack.push(value);
+                        this._add_trace(`Step ${step_num++}`, `Load variable ${token}`, { 'variable': token, 'value': value, 'stack': `[${stack.join(', ')}]` });
+                    } else if (token in this.parser.operators) {
+                        if (this.parser.operators[token].unary) {
+                            const operand = stack.pop();
+                            const result = LogicGates.NOT(operand);
+                            stack.push(result);
+                            this._add_trace(`Step ${step_num++}`, 'Apply NOT', { 'operation': 'NOT', 'operand': operand, 'result': result, 'stack': `[${stack.join(', ')}]` });
+                        } else {
+                            const b = stack.pop();
+                            const a = stack.pop();
+                            let result;
+                            let op_name;
+                            if (token === '&' || token === 'AND') { result = LogicGates.AND(a, b); op_name = 'AND'; }
+                            else if (token === '|' || token === 'OR') { result = LogicGates.OR(a, b); op_name = 'OR'; }
+                            else if (token === '^' || token === 'XOR') { result = LogicGates.XOR(a, b); op_name = 'XOR'; }
+                            stack.push(result);
+                            this._add_trace(`Step ${step_num++}`, `Apply ${op_name}`, { 'operation': op_name, 'operand_a': a, 'operand_b': b, 'result': result, 'stack': `[${stack.join(', ')}]` });
+                        }
+                    }
+                }
+                const final_result = stack[0] || 0;
+                this._add_trace('Final', 'Circuit output', { 'output': final_result });
+                return this._format_trace(expression, variable_values);
+            }
+        }
+
+        // --- Ported Python Class: ALUFlags ---
+        class ALUFlags {
+            constructor() { this.reset(); }
+            reset() {
+                this.Zero = 0; this.Carry = 0; this.Overflow = 0; this.Sign = 0; this.Parity = 0;
+            }
+            update(result_bits, carry_out, overflow) {
+                this.reset();
+                const bit_width = result_bits.length;
+
+                let is_zero = 1;
+                for (const bit of result_bits) { is_zero = LogicGates.AND(is_zero, LogicGates.NOT(bit)); }
+                this.Zero = is_zero;
+
+                this.Carry = carry_out;
+                this.Overflow = overflow;
+                this.Sign = result_bits[bit_width - 1];
+                this.Parity = BinaryAnalyzer.check_parity(result_bits);
+            }
+            to_dict() {
+                return { "Zero": this.Zero, "Carry": this.Carry, "Overflow": this.Overflow, "Sign": this.Sign, "Parity": this.Parity };
+            }
+        }
+
+        // --- Ported Python Class: ALU ---
+        class ALU {
+            // Opcodes
+            static OP_ADD = 0x01; static OP_SUB = 0x02; static OP_MUL = 0x03; static OP_DIV = 0x04;
+            static OP_AND = 0x10; static OP_OR = 0x11; static OP_XOR = 0x12; static OP_NOT = 0x13;
+            static OP_SHL = 0x20; static OP_SHR = 0x21; static OP_ROL = 0x22; static OP_ROR = 0x23;
+
+            constructor(bit_width) {
+                this.bit_width = bit_width;
+                this.arithmetic = new BinaryArithmetic(bit_width);
+                this.flags = new ALUFlags();
+                this.execution_log = [];
+            }
+
+            _add_log(description, data) {
+                let step_data = { data: {} };
+                step_data.description = description;
+                for (const [key, value] of Object.entries(data)) {
+                    if (Array.isArray(value)) {
+                        step_data.data[key] = BinaryAnalyzer.format_binary_string(value);
+                    } else {
+                        step_data.data[key] = String(value);
+                    }
+                }
+                this.execution_log.push(step_data);
+            }
+
+            _format_log() {
+                 return this.execution_log.map(step => {
+                    let s = `\n${step.description}\n`;
+                    if (step.data) {
+                        for (const [key, value] of Object.entries(step.data)) {
+                            s += `  ${key}: ${value}\n`;
+                        }
+                    }
+                    return s;
+                }).join("");
+            }
+
+            execute(opcode, a_bits, b_bits = null, trace = false) {
+                this.execution_log = [];
+                if (trace) {
+                    this._add_log("ALU Execution Start", {
+                        "Opcode": `0x${opcode.toString(16)}`,
+                        "Operand A": a_bits,
+                        "Operand B": b_bits || "N/A"
+                    });
+                }
+
+                if (b_bits === null) b_bits = Array(this.bit_width).fill(0);
+
+                let result_bits = Array(this.bit_width).fill(0);
+                let carry_out = 0;
+                let overflow = 0;
+
+                switch(opcode) {
+                    case ALU.OP_ADD:
+                        [result_bits, carry_out] = this.arithmetic.ripple_carry_adder(a_bits, b_bits, trace);
+                        this.execution_log.push(...this.arithmetic.execution_steps);
+                        break;
+                    case ALU.OP_SUB:
+                        let borrow;
+                        [result_bits, borrow, overflow] = this.arithmetic.subtract(a_bits, b_bits, trace);
+                        this.execution_log.push(...this.arithmetic.execution_steps);
+                        carry_out = borrow;
+                        break;
+                    case ALU.OP_MUL:
+                        const prod_bits = this.arithmetic.multiply(a_bits, b_bits, trace);
+                        this.execution_log.push(...this.arithmetic.execution_steps);
+                        result_bits = prod_bits.slice(0, this.bit_width);
+                        for (let i = this.bit_width; i < prod_bits.length; i++) {
+                            if (prod_bits[i] === 1) { overflow = 1; break; }
+                        }
+                        break;
+                    case ALU.OP_DIV:
+                        const [quotient, remainder] = this.arithmetic.divide(a_bits, b_bits, trace);
+                        this.execution_log.push(...this.arithmetic.execution_steps);
+                        result_bits = quotient;
+                        break;
+                    case ALU.OP_AND:
+                        for (let i = 0; i < this.bit_width; i++) result_bits[i] = LogicGates.AND(a_bits[i], b_bits[i]);
+                        this._add_log("Logical AND", {"Result": result_bits});
+                        break;
+                    case ALU.OP_OR:
+                        for (let i = 0; i < this.bit_width; i++) result_bits[i] = LogicGates.OR(a_bits[i], b_bits[i]);
+                        this._add_log("Logical OR", {"Result": result_bits});
+                        break;
+                    case ALU.OP_XOR:
+                        for (let i = 0; i < this.bit_width; i++) result_bits[i] = LogicGates.XOR(a_bits[i], b_bits[i]);
+                        this._add_log("Logical XOR", {"Result": result_bits});
+                        break;
+                    case ALU.OP_NOT:
+                        for (let i = 0; i < this.bit_width; i++) result_bits[i] = LogicGates.NOT(a_bits[i]);
+                        this._add_log("Logical NOT", {"Result": result_bits});
+                        break;
+                    case ALU.OP_SHL:
+                        carry_out = a_bits[this.bit_width - 1];
+                        result_bits = [...a_bits.slice(1), 0];
+                        this._add_log("Logical Shift Left (SHL)", { "Result": result_bits, "Carry": carry_out });
+                        break;
+                    case ALU.OP_SHR:
+                        carry_out = a_bits[0];
+                        result_bits = [0, ...a_bits.slice(0, -1)];
+                        this._add_log("Logical Shift Right (SHR)", { "Result": result_bits, "Carry": carry_out });
+                        break;
+                    case ALU.OP_ROL:
+                        carry_out = a_bits[this.bit_width - 1];
+                        result_bits = [...a_bits.slice(1), carry_out];
+                        this._add_log("Rotate Left (ROL)", { "Result": result_bits, "Carry": carry_out });
+                        break;
+                    case ALU.OP_ROR:
+                        carry_out = a_bits[0];
+                        result_bits = [carry_out, ...a_bits.slice(0, -1)];
+                        this._add_log("Rotate Right (ROR)", { "Result": result_bits, "Carry": carry_out });
+                        break;
+                    default:
+                        this._add_log("ERROR: Unknown Opcode", {"Opcode": `0x${opcode.toString(16)}`});
+                }
+
+                this.flags.update(result_bits, carry_out, overflow);
+                if (trace) {
+                    this._add_log("ALU Execution Complete", {
+                        "Final Result": result_bits, "Flags": JSON.stringify(this.flags.to_dict())
+                    });
+                }
+                return result_bits;
+            }
+        }
+
+        // --- Ported Python Class: ControlUnit ---
+        class ControlUnit {
+            constructor(alu) {
+                this.alu = alu;
+            }
+
+            decode_and_execute(instruction, trace = false) {
+                const { opcode, operand_a, operand_b } = instruction;
+                if (opcode === undefined || operand_a === undefined) {
+                    throw new Error("Invalid instruction: missing opcode or operand_a");
+                }
+                return this.alu.execute(opcode, operand_a, operand_b, trace);
+            }
+        }
+
+
+        // --- Main Application Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Instances ---
+            const BIT_WIDTH = 8;
+            const arith = new BinaryArithmetic(BIT_WIDTH);
+            const parser = new LogicExpressionParser();
+            const simulator = new CircuitSimulator();
+            const alu = new ALU(BIT_WIDTH);
+            const control = new ControlUnit(alu);
+
+            const opMap = {
+                "ADD": ALU.OP_ADD, "SUB": ALU.OP_SUB, "MUL": ALU.OP_MUL, "DIV": ALU.OP_DIV,
+                "AND": ALU.OP_AND, "OR": ALU.OP_OR, "XOR": ALU.OP_XOR, "NOT": ALU.OP_NOT,
+                "SHL": ALU.OP_SHL, "SHR": ALU.OP_SHR, "ROL": ALU.OP_ROL, "ROR": ALU.OP_ROR
+            };
+
+            // --- State ---
+            let lastFocusedInput = null;
+
+            // --- DOM Elements ---
+            const arithLog = document.getElementById('arith-log');
+            const arithMsg = document.getElementById('arith-message');
+            const aluLog = document.getElementById('alu-log');
+            const logicOutput = document.getElementById('logic-output');
+            const simModal = document.getElementById('simulation-modal');
+            const simInputsContainer = document.getElementById('simulation-inputs');
+
+            // --- Initial Display Setup ---
+            function initializeDisplays() {
+                try {
+                    // Init Arith tab
+                    const { a_bits, b_bits } = getArithOperands(false); // false = no error msg
+                    createBinaryDisplay('display-arith-a', a_bits || Array(BIT_WIDTH).fill(0), "Operand A");
+                    createBinaryDisplay('display-arith-b', b_bits || Array(BIT_WIDTH).fill(0), "Operand B");
+                    createBinaryDisplay('display-arith-result', Array(BIT_WIDTH * 2).fill(0), "Result (16-bit)");
+                    updateKeypad('arith-keypad', 'Decimal');
+
+                    // Init ALU tab
+                    const { alu_a_bits } = getAluOperands(false);
+                    createBinaryDisplay('display-alu-result', alu_a_bits || Array(BIT_WIDTH).fill(0), "ALU Result");
+                    updateAluFlags(alu.flags.to_dict());
+                    updateKeypad('alu-keypad', 'Decimal');
+
+                    // Init Gates tab
+                    updateGateSimulation();
+
+                } catch (e) {
+                    console.error("Init Error:", e.message);
+                }
+            }
+
+            // --- Event Listeners: Tab Navigation ---
+            document.getElementById('tab-nav').addEventListener('click', (e) => {
+                if (e.target.classList.contains('tab-btn')) {
+                    showTab(e.target.dataset.tab);
+                }
+            });
+
+            // --- Logic: Virtual Keypad & Input ---
+
+            // Track focused input
+            document.querySelectorAll('.operand-input').forEach(input => {
+                input.addEventListener('focus', (e) => {
+                    lastFocusedInput = e.target;
+                    // Update keypad to match this input's base
+                    const base = e.target.dataset.base;
+                    const keypadId = e.target.closest('.tab-content').querySelector('.keypad').id;
+                    updateKeypad(keypadId, base);
+                });
+
+                // Physical keyboard validation
+                input.addEventListener('beforeinput', (e) => {
+                    if (e.data && !BinaryAnalyzer.isValidChar(e.data, e.target.dataset.base)) {
+                        e.preventDefault();
+                    }
+                });
+            });
+
+            // Handle base selection change
+            document.querySelectorAll('.input-base-select').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const newBase = e.target.value;
+                    const input = e.target.nextElementSibling;
+                    input.dataset.base = newBase;
+                    input.value = ""; // Clear input on base change
+
+                    // Update keypad
+                    const keypadId = e.target.closest('.tab-content').querySelector('.keypad').id;
+                    updateKeypad(keypadId, newBase);
+
+                    // Update corresponding binary display
+                    if (keypadId === 'arith-keypad') {
+                        const { a_bits, b_bits } = getArithOperands(false);
+                        createBinaryDisplay('display-arith-a', a_bits || Array(BIT_WIDTH).fill(0), "Operand A");
+                        createBinaryDisplay('display-arith-b', b_bits || Array(BIT_WIDTH).fill(0), "Operand B");
+                    }
+                });
+            });
+
+            /**
+             * Configures a keypad for a specific base.
+             * @param {string} keypadId - The ID of the keypad.
+             * @param {string} base - "Binary", "Decimal", "Octal", or "Hex".
+             */
+            function updateKeypad(keypadId, base) {
+                const keypad = document.getElementById(keypadId);
+                if (!keypad) return;
+
+                const keyConfig = {
+                    'Binary':    ['0', '1'],
+                    'Decimal':   ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+                    'Octal':     ['0', '1', '2', '3', '4', '5', '6', '7'],
+                    'Hex':       ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F']
+                };
+
+                const validKeys = new Set(keyConfig[base]);
+
+                keypad.querySelectorAll('.keypad-btn').forEach(btn => {
+                    const key = btn.dataset.key;
+                    if (key === 'backspace' || key === 'clear') return; // Always enabled
+
+                    btn.disabled = !validKeys.has(key);
+                });
+            }
+
+            // Handle keypad clicks
+            document.querySelectorAll('.keypad').forEach(keypad => {
+                keypad.addEventListener('click', (e) => {
+                    if (!e.target.matches('.keypad-btn:not(:disabled)')) return;
+                    if (!lastFocusedInput) return;
+
+                    // Check if the focused input belongs to this keypad
+                    if (lastFocusedInput.closest('.tab-content').querySelector('.keypad') !== keypad) {
+                        return;
+                    }
+
+                    const key = e.target.dataset.key;
+
+                    if (key === 'backspace') {
+                        lastFocusedInput.value = lastFocusedInput.value.slice(0, -1);
+                    } else if (key === 'clear') {
+                        lastFocusedInput.value = "";
+                    } else {
+                        // Check against the input's own base
+                        if (BinaryAnalyzer.isValidChar(key, lastFocusedInput.dataset.base)) {
+                            lastFocusedInput.value += key;
+                        }
+                    }
+
+                    // Trigger input event to update displays
+                    lastFocusedInput.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+            });
+
+            // --- Logic: Arithmetic Tab ---
+            function getArithOperands(showError = true) {
+                const a_val_str = document.getElementById('arith-a-input').value;
+                const a_base = document.getElementById('arith-a-base').value;
+                const b_val_str = document.getElementById('arith-b-input').value;
+                const b_base = document.getElementById('arith-b-base').value;
+
+                const a_val = BinaryAnalyzer.parseInput(a_val_str, a_base);
+                const b_val = BinaryAnalyzer.parseInput(b_val_str, b_base);
+
+                if (isNaN(a_val) || isNaN(b_val) || a_val < 0 || a_val > 255 || b_val < 0 || b_val > 255) {
+                    if (showError) showMessage('arith-message', "Error: Values must be valid for their base and result in 0-255.");
+                    return {};
+                }
+
+                const a_bits = BinaryAnalyzer.decimal_to_binary(a_val, BIT_WIDTH);
+                const b_bits = BinaryAnalyzer.decimal_to_binary(b_val, BIT_WIDTH);
+                return { a_bits, b_bits, a_val, b_val };
+            }
+
+            document.getElementById('arith-a-input').addEventListener('input', () => {
+                const { a_bits } = getArithOperands(false);
+                createBinaryDisplay('display-arith-a', a_bits || Array(BIT_WIDTH).fill(0), "Operand A");
+            });
+            document.getElementById('arith-b-input').addEventListener('input', () => {
+                const { b_bits } = getArithOperands(false);
+                createBinaryDisplay('display-arith-b', b_bits || Array(BIT_WIDTH).fill(0), "Operand B");
+            });
+
+            document.getElementById('btn-add').addEventListener('click', () => {
+                const { a_bits, b_bits } = getArithOperands();
+                if (!a_bits) return;
+                showMessage('arith-message', "");
+                const [result, carry] = arith.ripple_carry_adder(a_bits, b_bits, true);
+                arithLog.textContent = arith._format_trace();
+                createBinaryDisplay('display-arith-result', result, "Result (8-bit)");
+                if (carry) showMessage('arith-message', "Notice: Addition overflow occurred (Carry=1).");
+            });
+
+            document.getElementById('btn-sub').addEventListener('click', () => {
+                const { a_bits, b_bits } = getArithOperands();
+                if (!a_bits) return;
+                showMessage('arith-message', "");
+                const [result, borrow, overflow] = arith.subtract(a_bits, b_bits, true);
+                arithLog.textContent = arith._format_trace();
+                createBinaryDisplay('display-arith-result', result, "Result (8-bit)");
+                if (borrow) showMessage('arith-message', "Notice: Subtraction underflow occurred (Borrow=1).");
+            });
+
+            document.getElementById('btn-mul').addEventListener('click', () => {
+                const { a_bits, b_bits } = getArithOperands();
+                if (!a_bits) return;
+                showMessage('arith-message', "");
+                const result = arith.multiply(a_bits, b_bits, true);
+                arithLog.textContent = arith._format_trace();
+                createBinaryDisplay('display-arith-result', result, "Result (16-bit)");
+            });
+
+            document.getElementById('btn-div').addEventListener('click', () => {
+                const { a_bits, b_bits, b_val } = getArithOperands();
+                if (!a_bits) return;
+                if (b_val === 0) {
+                     showMessage('arith-message', "Error: Cannot divide by zero.");
+                     return;
+                }
+                showMessage('arith-message', "");
+                const [quotient, remainder] = arith.divide(a_bits, b_bits, true);
+                arithLog.textContent = arith._format_trace();
+                createBinaryDisplay('display-arith-result', quotient, "Quotient (8-bit)");
+                const rem_dec = BinaryAnalyzer.binary_to_decimal(remainder);
+                showMessage('arith-message', `Division Complete. Remainder: ${rem_dec} (${BinaryAnalyzer.format_binary_string(remainder)})`, "info");
+            });
+
+            // --- Logic: Logic Designer ---
+            document.getElementById('btn-truth-table').addEventListener('click', () => {
+                try {
+                    const expr = document.getElementById('logic-expr').value;
+                    const table = parser.generate_truth_table(expr);
+                    logicOutput.textContent = parser.format_truth_table(table);
+                } catch (e) {
+                    logicOutput.textContent = `Error: ${e.message}`;
+                }
+            });
+
+            document.getElementById('btn-simulate-expr').addEventListener('click', () => {
+                try {
+                    const expr = document.getElementById('logic-expr').value;
+                    const tokens = parser.tokenize(expr);
+                    const variables = parser.extract_variables(tokens);
+                    if (variables.length === 0) {
+                        logicOutput.textContent = "Error: No variables found in expression to simulate.";
+                        return;
+                    }
+                    // Build and show modal
+                    simInputsContainer.innerHTML = variables.map(v => `
+                        <div class="flex justify-between items-center">
+                            <label class="text-lg font-medium text-gray-300">${v}:</label>
+                            <select data-var="${v}" class="w-24 bg-gray-700 border border-gray-600 rounded-lg p-2 text-white">
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                            </select>
+                        </div>
+                    `).join('');
+                    showModal('simulation-modal');
+                } catch (e) {
+                    logicOutput.textContent = `Error: ${e.message}`;
+                }
+            });
+
+            document.getElementById('btn-modal-cancel').addEventListener('click', () => hideModal('simulation-modal'));
+
+            document.getElementById('btn-modal-run').addEventListener('click', () => {
+                const values = {};
+                simInputsContainer.querySelectorAll('select').forEach(sel => {
+                    values[sel.dataset.var] = parseInt(sel.value);
+                });
+                const expr = document.getElementById('logic-expr').value;
+                const trace = simulator.simulate_step_by_step(expr, values);
+                logicOutput.textContent = trace;
+                hideModal('simulation-modal');
+            });
+
+            // --- Logic: ALU Tab ---
+            function getAluOperands(showError = true) {
+                 const a_val_str = document.getElementById('alu-a-input').value;
+                const a_base = document.getElementById('alu-a-base').value;
+                const b_val_str = document.getElementById('alu-b-input').value;
+                const b_base = document.getElementById('alu-b-base').value;
+
+                const a_val = BinaryAnalyzer.parseInput(a_val_str, a_base);
+                const b_val = BinaryAnalyzer.parseInput(b_val_str, b_base);
+
+                if (isNaN(a_val) || isNaN(b_val) || a_val < 0 || a_val > 255 || b_val < 0 || b_val > 255) {
+                    if (showError) aluLog.textContent = "Error: Values must be valid for their base and result in 0-255.";
+                    return {};
+                }
+
+                const alu_a_bits = BinaryAnalyzer.decimal_to_binary(a_val, BIT_WIDTH);
+                const alu_b_bits = BinaryAnalyzer.decimal_to_binary(b_val, BIT_WIDTH);
+                return { alu_a_bits, alu_b_bits, alu_a_val: a_val, alu_b_val: b_val };
+            }
+
+            document.getElementById('btn-alu-execute').addEventListener('click', () => {
+                try {
+                    const { alu_a_bits, alu_b_bits, alu_b_val } = getAluOperands();
+                    if (!alu_a_bits) return;
+
+                    const opName = document.getElementById('alu-op').value;
+                    const opcode = opMap[opName];
+
+                    if (opcode === ALU.OP_DIV && alu_b_val === 0) {
+                        aluLog.textContent = "Error: Cannot divide by zero.";
+                        return;
+                    }
+
+                    const instruction = { opcode, operand_a: alu_a_bits, operand_b: alu_b_bits };
+                    const result = control.decode_and_execute(instruction, true);
+
+                    aluLog.textContent = alu._format_log();
+                    createBinaryDisplay('display-alu-result', result, "ALU Result");
+                    updateAluFlags(alu.flags.to_dict());
+
+                } catch (e) {
+                    aluLog.textContent = `Runtime Error: ${e.message}`;
+                }
+            });
+
+            // --- Logic: Logic Gates Tab ---
+            const gateSelect = document.getElementById('gate-select');
+            const switchA = document.getElementById('gate-switch-a');
+            const switchB = document.getElementById('gate-switch-b');
+            const inputBContainer = document.getElementById('gate-input-b-container');
+            const wireA = document.getElementById('gate-wire-a');
+            const wireB = document.getElementById('gate-wire-b');
+            const wireOut = document.getElementById('gate-wire-out');
+            const ledOut = document.getElementById('gate-led-out');
+            const knobA = document.getElementById('gate-knob-a');
+            const knobB = document.getElementById('gate-knob-b');
+
+            function updateGateSimulation() {
+                const gateName = gateSelect.value;
+                const inputA = parseInt(switchA.dataset.value);
+                const inputB = parseInt(switchB.dataset.value);
+
+                let output = 0;
+
+                // 1. Calculate Output
+                switch(gateName) {
+                    case 'AND': output = LogicGates.AND(inputA, inputB); break;
+                    case 'OR': output = LogicGates.OR(inputA, inputB); break;
+                    case 'NOT': output = LogicGates.NOT(inputA); break;
+                    case 'XOR': output = LogicGates.XOR(inputA, inputB); break;
+                    case 'NAND': output = LogicGates.NAND(inputA, inputB); break;
+                    case 'NOR': output = LogicGates.NOR(inputA, inputB); break;
+                    case 'XNOR': output = LogicGates.XNOR(inputA, inputB); break;
+                }
+
+                // 2. Update UI
+                // Show/hide Input B
+                const isUnary = (gateName === 'NOT');
+                inputBContainer.style.display = isUnary ? 'none' : 'flex';
+
+                // Update Wires
+                wireA.dataset.value = inputA;
+                wireB.style.display = isUnary ? 'none' : 'block';
+                wireB.dataset.value = inputB;
+                wireOut.dataset.value = output;
+
+                // Update SVG wires for NOT gate
+                wireA.setAttribute('y1', isUnary ? 50 : 30);
+                wireA.setAttribute('y2', isUnary ? 50 : 30);
+
+                // Update Output LED
+                ledOut.dataset.value = output;
+                ledOut.textContent = output;
+
+                // 3. Update SVG Diagram
+                document.querySelectorAll('#gate-svg-canvas g').forEach(g => {
+                    g.style.display = (g.id === `gate-svg-${gateName}`) ? 'block' : 'none';
+                });
+
+                // 4. Update Truth Table
+                const tt = document.getElementById('gate-truth-table');
+                tt.querySelectorAll('tbody tr').forEach(row => row.classList.remove('highlight'));
+
+                if (isUnary) {
+                    tt.querySelector('th:nth-child(2)').style.display = 'none'; // Hide B header
+                    tt.querySelector('#tt-row-00').classList.toggle('highlight', inputA === 0);
+                    tt.querySelector('#tt-row-10').classList.toggle('highlight', inputA === 1);
+                    tt.querySelector('#tt-row-01').style.display = 'none';
+                    tt.querySelector('#tt-row-11').style.display = 'none';
+
+                    tt.querySelector('#tt-row-00 .tt-out').textContent = LogicGates.NOT(0);
+                    tt.querySelector('#tt-row-10 .tt-out').textContent = LogicGates.NOT(1);
+                    tt.querySelector('#tt-row-00 td:nth-child(2)').style.display = 'none';
+                    tt.querySelector('#tt-row-10 td:nth-child(2)').style.display = 'none';
+
+                } else {
+                    tt.querySelector('th:nth-child(2)').style.display = 'table-cell';
+                    tt.querySelectorAll('td:nth-child(2)').forEach(td => td.style.display = 'table-cell');
+                    tt.querySelector('#tt-row-01').style.display = 'table-row';
+                    tt.querySelector('#tt-row-11').style.display = 'table-row';
+
+                    // Update all output cells for the selected gate
+                    tt.querySelector('#tt-row-00 .tt-out').textContent = LogicGates[gateName](0, 0);
+                    tt.querySelector('#tt-row-01 .tt-out').textContent = LogicGates[gateName](0, 1);
+                    tt.querySelector('#tt-row-10 .tt-out').textContent = LogicGates[gateName](1, 0);
+                    tt.querySelector('#tt-row-11 .tt-out').textContent = LogicGates[gateName](1, 1);
+
+                    // Highlight current row
+                    document.getElementById(`tt-row-${inputA}${inputB}`).classList.add('highlight');
+                }
+            }
+
+            // Gate Sim Event Listeners
+            gateSelect.addEventListener('change', updateGateSimulation);
+            switchA.addEventListener('click', () => {
+                const newValue = (switchA.dataset.value === '0') ? 1 : 0;
+                switchA.dataset.value = newValue;
+                knobA.textContent = newValue;
+                updateGateSimulation();
+            });
+            switchB.addEventListener('click', () => {
+                const newValue = (switchB.dataset.value === '0') ? 1 : 0;
+                switchB.dataset.value = newValue;
+                knobB.textContent = newValue;
+                updateGateSimulation();
+            });
+
+            // --- Initial Run ---
+            initializeDisplays();
+            showTab('gates');
+
+        });
+    </script>
+</body>
+</html>
+
